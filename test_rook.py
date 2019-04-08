@@ -25,14 +25,15 @@ def test_mon_update(ceph_cluster):
     _wait_for_condition(lambda: len(get_pods(labels='app=rook-ceph-mon')) == 3)
 
 
-@pytest.mark.skip("broken")
+#@pytest.mark.skip("broken")
 def test_osd_create(ceph_cluster):
     assert 'osd' not in  _orch_exec('service ls')
     _orch_exec('osd create kubic-1:vdb')
-    _wait_for_condition(lambda:  _service_exist('osd'))
+    _orch_exec('osd create kubic-2:vdb')
+    _wait_for_condition(lambda:  _service_exist('osd'), timeout=120)
 
 
-@pytest.mark.skip("needs osds")
+#@pytest.mark.skip("needs osds")
 def test_nfs(ceph_cluster):
     assert _service_exist('osd')
     def has_nfs():
