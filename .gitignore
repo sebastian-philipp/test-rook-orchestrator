@@ -1,0 +1,4 @@
+config_paths.sh
+__pycache__
+venv
+.idea
