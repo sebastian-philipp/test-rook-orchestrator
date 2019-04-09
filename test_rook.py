@@ -3,7 +3,7 @@ import json
 import pytest
 
 from fixtures import _orch_exec, _wait_for_condition, _service_exist, _ceph_exec, ceph_cluster, \
-    get_pods
+    get_pods, pods_started
 
 
 def test_status(ceph_cluster):
@@ -25,23 +25,26 @@ def test_mon_update(ceph_cluster):
     _wait_for_condition(lambda: len(get_pods(labels='app=rook-ceph-mon')) == 3)
 
 
-#@pytest.mark.skip("broken")
 def test_osd_create(ceph_cluster):
     assert 'osd' not in  _orch_exec('service ls')
     _orch_exec('osd create kubic-1:vdb')
     _orch_exec('osd create kubic-2:vdb')
-    _wait_for_condition(lambda:  _service_exist('osd'), timeout=120)
+    _wait_for_condition(lambda: len(get_pods(labels='app=rook-ceph-osd')) >= 1, timeout=120)
+    _wait_for_condition(lambda: len(get_pods(labels='app=rook-ceph-osd')) == 2, timeout=120)
+    _wait_for_condition(lambda:  _service_exist('osd'))
+    _wait_for_condition(lambda: pods_started(labels='app=rook-ceph-osd'))
 
 
-#@pytest.mark.skip("needs osds")
+
 def test_nfs(ceph_cluster):
     assert _service_exist('osd')
-    def has_nfs():
-        return _service_exist('nfs')
-
     if not 'nfs-ganesha' in _ceph_exec('osd pool ls'):
         _ceph_exec("osd pool create nfs-ganesha 64")
-    assert not has_nfs()
+    assert not _service_exist('nfs')
+
     _orch_exec("nfs add mynfs nfs-ganesha mynfs")
-    _wait_for_condition(has_nfs)
+    _wait_for_condition(lambda: _service_exist('nfs'))
+    _wait_for_condition(lambda: len(get_pods(labels='app=rook-ceph-nfs')) >= 1, timeout=120)
+    _wait_for_condition(lambda: pods_started(labels='app=rook-ceph-nfs'), timeout=60)
+
 

@@ -13,7 +13,7 @@ from pytest import fixture
 def ceph_cluster():
 
     check_output('./deploy-rook-ceph.sh')
-    _wait_for_condition(_has_tools_pod, 120)
+    _wait_for_condition(_has_tools_pod, 240)
     _wait_for_condition(lambda: _service_exist('mon'))
     _wait_for_condition(lambda: _service_exist('mgr'))
     yield None
@@ -112,3 +112,8 @@ def containers_started(p: V1Pod):
             break
 
     return containers_started
+
+
+def pods_started(namespace='rook-ceph', fields: str=None, labels: str=None):
+    pods = get_pods(namespace, fields=fields, labels=labels)
+    return all(containers_started(p) for p in pods)
