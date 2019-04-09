@@ -35,7 +35,7 @@ def test_osd_create(ceph_cluster):
     _wait_for_condition(lambda: pods_started(labels='app=rook-ceph-osd'))
 
 
-
+@pytest.mark.skip(reason="needs image rebuild")
 def test_nfs(ceph_cluster):
     assert _service_exist('osd')
     if not 'nfs-ganesha' in _ceph_exec('osd pool ls'):
@@ -43,8 +43,27 @@ def test_nfs(ceph_cluster):
     assert not _service_exist('nfs')
 
     _orch_exec("nfs add mynfs nfs-ganesha mynfs")
-    _wait_for_condition(lambda: _service_exist('nfs'))
     _wait_for_condition(lambda: len(get_pods(labels='app=rook-ceph-nfs')) >= 1, timeout=120)
     _wait_for_condition(lambda: pods_started(labels='app=rook-ceph-nfs'), timeout=60)
+    _wait_for_condition(lambda: _service_exist('nfs'))
 
 
+def test_mds(ceph_cluster):
+    assert not _service_exist('mds')
+    _ceph_exec('fs volume create myname')
+    _wait_for_condition(lambda: len(get_pods(labels='app=rook-ceph-mds')) == 2)
+    _wait_for_condition(lambda: pods_started(labels='app=rook-ceph-mds'))
+    _wait_for_condition(lambda: _service_exist('mds'))
+
+    _ceph_exec('fs volume rm myname')
+    _wait_for_condition(lambda: not _service_exist('mds'))
+    _wait_for_condition(lambda: not get_pods(labels='app=rook-ceph-mds'))
+
+
+@pytest.mark.skip(reason="needs image rebuild")
+def test_rgw(ceph_cluster):
+    assert not _service_exist('rgw')
+    _orch_exec("rgw add myrgw")
+    _wait_for_condition(lambda: len(get_pods(labels='app=rook-ceph-rgw')) >= 1)
+    _wait_for_condition(lambda: pods_started(labels='app=rook-ceph-rgw'))
+    _wait_for_condition(lambda: _service_exist('rgw'))
