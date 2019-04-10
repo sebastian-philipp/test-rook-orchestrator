@@ -26,7 +26,7 @@ def test_mon_update(ceph_cluster):
     _wait_for_condition(lambda: len(get_pods(labels='app=rook-ceph-mon')) >= 2)
     _wait_for_condition(lambda: len(get_pods(labels='app=rook-ceph-mon')) == 3)
 
-#@pytest.mark.skip(reason="no way of currently testing this")
+
 def test_osd_create(ceph_cluster):
     assert 'osd' not in  _orch_exec('service ls')
     #_orch_exec('osd create kubic-1:vdb --encrypted=true')
@@ -41,7 +41,6 @@ def test_osd_create(ceph_cluster):
     _wait_for_condition(lambda: pods_started(labels='app=rook-ceph-osd'))
 
 
-#@pytest.mark.skip(reason="needs image rebuild")
 def test_nfs(ceph_cluster):
     assert _service_exist('osd')
     if not 'nfs-ganesha' in _ceph_exec('osd pool ls'):
@@ -59,7 +58,7 @@ def test_nfs(ceph_cluster):
     _wait_for_condition(lambda: not _service_exist('nfs'))
     _wait_for_condition(lambda: not get_pods(labels='app=rook-ceph-nfs'))
 
-#@pytest.mark.skip(reason="needs image rebuild")
+
 def test_mds(ceph_cluster):
     assert not _service_exist('mds')
     _ceph_exec('fs volume create myname')
