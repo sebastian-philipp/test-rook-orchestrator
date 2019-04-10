@@ -63,23 +63,6 @@ def _has_tools_pod():
 
 
 def get_pods(namespace='rook-ceph', fields: str=None, labels: str=None) -> List[V1Pod]:
-    """Get Pods from the cluster.
-
-    Args:
-        namespace (str): The namespace to get the Pods from. If not
-            specified, it will use the auto-generated test case namespace
-            by default.
-        fields (dict[str, str]): A dictionary of fields used to restrict
-            the returned collection of Pods to only those which match
-            these field selectors. By default, no restricting is done.
-        labels (dict[str, str]): A dictionary of labels used to restrict
-            the returned collection of Pods to only those which match
-            these label selectors. By default, no restricting is done.
-
-    Returns:
-        dict[str, objects.Pod]: A dictionary where the key is the Pod
-        name and the value is the Pod itself.
-    """
     config.load_kube_config()
 
     kwargs = {}
@@ -95,23 +78,12 @@ def get_pods(namespace='rook-ceph', fields: str=None, labels: str=None) -> List[
 
     return pod_list.items
 
+
 def containers_started(p: V1Pod):
-    containers_started = True
-
-    status = p.status # type: V1PodStatus
-    if status:
-        for container_status in status.container_statuses:
-            if container_status.state is not None:
-                if container_status.state.running is not None:
-                    if container_status.state.running.started_at is not None:
-                        # The container is started, so move on to check the
-                        # next container
-                        continue
-            # If we get here, then the container has not started.
-            containers_started = containers_started and False
-            break
-
-    return containers_started
+    try:
+        return all(cs.state.running.started_at is not None for cs in p.status.container_statuses)
+    except (AttributeError, TypeError):
+        return False
 
 
 def pods_started(namespace='rook-ceph', fields: str=None, labels: str=None):
