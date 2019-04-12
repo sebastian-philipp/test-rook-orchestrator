@@ -9,8 +9,19 @@ from kubernetes.client import V1Pod, V1PodStatus
 from pytest import fixture
 
 
+# @fixture(scope='module')
+def rook_operator():
+    if not get_pods('rook-ceph-system', labels='app=rook-ceph-operator'):
+        check_output('./deploy-rook-operator.sh')
+
+    _wait_for_condition(lambda: get_pods('rook-ceph-system', labels='app=rook-ceph-operator'), 240)
+    _wait_for_condition(lambda: pods_started('rook-ceph-system', labels='app=rook-ceph-operator'), 240)
+    _wait_for_condition(lambda: pods_started('rook-ceph-system', labels='app=rook-ceph-agent'), 240)
+    _wait_for_condition(lambda: pods_started('rook-ceph-system', labels='app=rook-discover'), 240)
+
 @fixture(scope='module')
 def ceph_cluster():
+    rook_operator()
 
     check_output('./deploy-rook-ceph.sh')
     _wait_for_condition(_has_tools_pod, 240)
