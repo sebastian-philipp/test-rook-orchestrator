@@ -11,20 +11,22 @@ from pytest import fixture
 
 # @fixture(scope='module')
 def rook_operator():
-    if not get_pods('rook-ceph-system', labels='app=rook-ceph-operator'):
+    if not get_pods(labels='app=rook-ceph-operator'):
         check_output('./deploy-rook-operator.sh')
 
-    _wait_for_condition(lambda: get_pods('rook-ceph-system', labels='app=rook-ceph-operator'), 240)
-    _wait_for_condition(lambda: pods_started('rook-ceph-system', labels='app=rook-ceph-operator'), 240)
-    _wait_for_condition(lambda: pods_started('rook-ceph-system', labels='app=rook-ceph-agent'), 240)
-    _wait_for_condition(lambda: pods_started('rook-ceph-system', labels='app=rook-discover'), 240)
+    _wait_for_condition(lambda: get_pods(labels='app=rook-ceph-operator'), 240)
+    _wait_for_condition(lambda: pods_started(labels='app=rook-ceph-operator'), 240)
+    _wait_for_condition(lambda: pods_started(labels='app=rook-ceph-agent'), 240)
+    _wait_for_condition(lambda: pods_started(labels='app=rook-discover'), 240)
 
 @fixture(scope='module')
 def ceph_cluster():
     rook_operator()
 
     check_output('./deploy-rook-ceph.sh')
-    _wait_for_condition(_has_tools_pod, 240)
+    _wait_for_condition(lambda: pods_started(labels='app=rook-ceph-tools'), 240)
+    _wait_for_condition(lambda: pods_started(labels='app=rook-ceph-mon'), 240)
+    _wait_for_condition(lambda: pods_started(labels='app=rook-ceph-mgr'), 240)
     _wait_for_condition(lambda: _service_exist('mon'))
     _wait_for_condition(lambda: _service_exist('mgr'))
     yield None
@@ -65,14 +67,6 @@ def _wait_for_condition(condition, timeout=30):
         time.sleep(1)
 
 
-def _has_tools_pod():
-    ps = get_pods(labels='app=rook-ceph-tools')
-    if not ps:
-        return False
-    p = list(ps)[0]
-    return containers_started(p)
-
-
 def get_pods(namespace='rook-ceph', fields: str=None, labels: str=None) -> List[V1Pod]:
     config.load_kube_config()
 
@@ -99,4 +93,6 @@ def containers_started(p: V1Pod):
 
 def pods_started(namespace='rook-ceph', fields: str=None, labels: str=None):
     pods = get_pods(namespace, fields=fields, labels=labels)
+    if not pods:
+        return False
     return all(containers_started(p) for p in pods)

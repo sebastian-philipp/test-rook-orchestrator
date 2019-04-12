@@ -3,14 +3,40 @@ set -x
 
 . config_paths.sh
 
-timeout 30 kubectl delete CephNFS --all
-timeout 30 kubectl delete CephCluster --all
+crs="CephNFS CephObjectStore CephFilesystem CephCluster"
+apps="mon mgr osd mds rgw tools"
+
+for cr in $crs
+do
+    timeout 30 kubectl delete $cr --all
+done
+
 timeout 30 kubectl delete -f $rook_path/cluster.yaml
+timeout 30 kubectl delete -f $rook_path/toolbox.yaml
 timeout 30 kubectl delete pod -n rook-ceph-system -l app=rook-ceph-operator
 
-while kubectl get namespace rook-ceph ; do
-    sleep 1
+for cr in $(echo $crs)
+do
+    while kubectl get $cr rook-ceph ; do
+        sleep 1
+    done
 done
+
+for primitive in service deployment pod
+do
+    for app in $(echo $apps)
+    do
+        timeout 30 kubectl delete $primitive -l app=rook-ceph-$app
+    done
+done
+
+for app in $(echo $apps)
+do
+    while kubectl get pod -l app=rook-ceph-$app -o json | jq -e '.items[0].metadata.labels.app' ; do
+        sleep 1
+    done
+done
+
 
 pushd $kubic_path
 for h in $(terraform output -json | jq -r '.ips.value[][]')
