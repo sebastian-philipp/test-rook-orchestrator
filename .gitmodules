@@ -1,0 +1,3 @@
+[submodule "kubic-terraform-kvm"]
+	path = kubic-terraform-kvm
+	url = https://github.com/kubic-project/kubic-terraform-kvm.git
