@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
+set -ex
 
-. config_paths.sh
-
-kubectl apply -f $rook_path/common.yaml
-kubectl apply -f $rook_path/operator.yaml
+kubectl apply -f common.yaml
+kubectl apply -f operator.yaml

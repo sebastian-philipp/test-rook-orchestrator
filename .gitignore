@@ -2,3 +2,8 @@ config_paths.sh
 __pycache__
 venv
 .idea
+cluster-minimal.yaml
+common.yaml
+operator.yaml
+toolbox.yaml
+.tox

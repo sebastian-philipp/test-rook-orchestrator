@@ -2,6 +2,8 @@ import time
 from subprocess import check_output, CalledProcessError
 from typing import List
 
+import requests
+import yaml
 from kubernetes import client, config
 #from kubetest import utils, objects
 #from kubetest.client import TestClient
@@ -9,8 +11,37 @@ from kubernetes.client import V1Pod, V1PodStatus
 from pytest import fixture
 
 
+def download_rook_manifests():
+    def change_flexvolume(text):
+        yamls = list(yaml.safe_load_all(text))
+        for y in yamls:
+            try:
+                if y['metadata']['name'] == 'rook-ceph-operator':
+                    flex = dict(name='FLEXVOLUME_DIR_PATH', value="/var/lib/kubelet/volumeplugins")
+                    y['spec']['template']['spec']['containers'][0]['env'].append(flex)
+            except (KeyError, TypeError):
+                pass
+            try:
+                y['spec']['cephVersion']['allowUnsupported']: True
+                y['spec']['cephVersion']['image'] = 'ceph/ceph:v14'
+            except (KeyError, TypeError):
+                pass
+        return yaml.safe_dump_all(yamls)
+
+    def download(name):
+        url = 'https://raw.githubusercontent.com/rook/rook/master/cluster/examples/kubernetes/ceph/{}.yaml'.format(name)
+        r = requests.get(url)
+        r.raise_for_status()
+        with open(name + '.yaml', 'w') as f:
+            f.write(change_flexvolume(r.text))
+
+    for name in ['common', 'operator', 'cluster-minimal', 'toolbox']:
+        download(name)
+
 # @fixture(scope='module')
 def rook_operator():
+    download_rook_manifests()
+
     if not get_pods(labels='app=rook-ceph-operator'):
         check_output('./deploy-rook-operator.sh')
 
