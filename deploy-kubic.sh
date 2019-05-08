@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-set -e
+set -ex
 
 which kubectl > /dev/null
 which terraform > /dev/null
@@ -13,13 +13,13 @@ fi
 
 pushd ./kubic-terraform-kvm
 
-timeout 3m ./download-image.sh
+timeout 10m ./download-image.py
 terraform init
 terraform plan
 terraform apply -auto-approve
 ./mk-ssh-config.sh
 
-
+timeout 30 ../waitssh.sh $(terraform output -json | jq -r '.ips.value[0][]')
 cat <<'EOF' | ssh -F ssh_config $(terraform output -json | jq -r '.ips.value[0][]') 'bash -s'
 kubeadm init --cri-socket=/var/run/crio/crio.sock --pod-network-cidr=10.244.0.0/16
 mkdir -p $HOME/.kube
@@ -38,7 +38,7 @@ ssh -F ssh_config $(terraform output -json | jq -r '.ips.value[2][]') "$join_com
 scp -F ssh_config $(terraform output -json | jq -r '.ips.value[0][]'):~/.kube/config ~/.kube/config
 
 
-timeout 5m bash <<EOF
+timeout 5m bash <<'EOF'
 while [ "$(kubectl get nodes | grep ' Ready ' | wc -l)" != 3 ]
 do
   sleep 1

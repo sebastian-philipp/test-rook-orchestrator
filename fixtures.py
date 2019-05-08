@@ -22,8 +22,8 @@ def download_rook_manifests():
             except (KeyError, TypeError):
                 pass
             try:
-                y['spec']['cephVersion']['allowUnsupported']: True
-                y['spec']['cephVersion']['image'] = 'ceph/ceph:v14'
+                y['spec']['cephVersion']['allowUnsupported'] = True
+                y['spec']['cephVersion']['image'] = 'ceph/daemon-base:latest-master'
             except (KeyError, TypeError):
                 pass
         return yaml.safe_dump_all(yamls)
@@ -54,10 +54,11 @@ def rook_operator():
 def ceph_cluster():
     rook_operator()
 
-    check_output('./deploy-rook-ceph.sh')
-    _wait_for_condition(lambda: pods_started(labels='app=rook-ceph-tools'), 240)
+    check_output('kubectl apply -f cluster-minimal.yaml', shell=True)
     _wait_for_condition(lambda: pods_started(labels='app=rook-ceph-mon'), 240)
     _wait_for_condition(lambda: pods_started(labels='app=rook-ceph-mgr'), 240)
+    check_output('kubectl apply -f toolbox.yaml', shell=True)  # now depends on running cluster.
+    _wait_for_condition(lambda: pods_started(labels='app=rook-ceph-tools'), 240)
     _wait_for_condition(lambda: _service_exist('mon'))
     _wait_for_condition(lambda: _service_exist('mgr'))
     yield None
