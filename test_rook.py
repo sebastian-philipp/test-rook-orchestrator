@@ -1,9 +1,10 @@
 import json
 
 import pytest
+import requests
 
 from fixtures import _orch_exec, _wait_for_condition, _service_exist, _ceph_exec, ceph_cluster, \
-    get_pods, pods_started
+    get_pods, pods_started, dashboard_url, dashboard_token_header
 
 
 def test_status(ceph_cluster):
@@ -82,3 +83,9 @@ def test_rgw(ceph_cluster):
     _orch_exec("rgw rm myrgw")
     _wait_for_condition(lambda: not _service_exist('rgw'))
     _wait_for_condition(lambda: not get_pods(labels='app=rook-ceph-rgw'))
+
+
+def test_dashboard(ceph_cluster):
+    url = f'{dashboard_url()}/api/summary'
+    headers = dashboard_token_header(dashboard_url())
+    requests.get(url, verify=False, headers=headers).raise_for_status()

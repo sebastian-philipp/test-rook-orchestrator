@@ -1,3 +1,4 @@
+import base64
 import time
 from subprocess import check_output, CalledProcessError
 from typing import List
@@ -7,9 +8,11 @@ import yaml
 from kubernetes import client, config
 #from kubetest import utils, objects
 #from kubetest.client import TestClient
-from kubernetes.client import V1Pod, V1PodStatus
+from kubernetes.client import V1Pod, V1Service, V1ServicePort, V1Secret
 from pytest import fixture
 
+ceph_image = 'ceph/daemon-base:latest-master'
+#ceph_image = '192.168.122.1:5000/ceph/ceph:latest'
 
 def download_rook_manifests():
     def change_flexvolume(text):
@@ -23,7 +26,7 @@ def download_rook_manifests():
                 pass
             try:
                 y['spec']['cephVersion']['allowUnsupported'] = True
-                y['spec']['cephVersion']['image'] = 'ceph/daemon-base:latest-master'
+                y['spec']['cephVersion']['image'] = ceph_image
             except (KeyError, TypeError):
                 pass
         return yaml.safe_dump_all(yamls)
@@ -35,7 +38,7 @@ def download_rook_manifests():
         with open(name + '.yaml', 'w') as f:
             f.write(change_flexvolume(r.text))
 
-    for name in ['common', 'operator', 'cluster-minimal', 'toolbox']:
+    for name in ['common', 'operator', 'cluster-minimal', 'toolbox', 'dashboard-external-https']:
         download(name)
 
 # @fixture(scope='module')
@@ -52,6 +55,7 @@ def rook_operator():
 
 @fixture(scope='module')
 def ceph_cluster():
+    config.load_kube_config()
     rook_operator()
 
     check_output('kubectl apply -f cluster-minimal.yaml', shell=True)
@@ -61,6 +65,7 @@ def ceph_cluster():
     _wait_for_condition(lambda: pods_started(labels='app=rook-ceph-tools'), 240)
     _wait_for_condition(lambda: _service_exist('mon'))
     _wait_for_condition(lambda: _service_exist('mgr'))
+    check_output('kubectl apply -f dashboard-external-https.yaml', shell=True)
     yield None
     check_output('./undeploy-rook-ceph.sh')
 
@@ -83,6 +88,24 @@ def _toolbox_exec(cmd):
     return check_output(f"""timeout 60 kubectl -n rook-ceph exec -it $(kubectl -n rook-ceph get pod -l "app=rook-ceph-tools" -o jsonpath='{{.items[0].metadata.name}}') -- timeout 30 {cmd}""", shell=True).decode('utf-8')
 
 
+def dashboard_url():
+    service: V1Service = client.CoreV1Api().read_namespaced_service('rook-ceph-mgr-dashboard-external-https', 'rook-ceph')
+    ports: List[V1ServicePort] = service.spec.ports
+
+    mgr = get_pods(labels='app=rook-ceph-mgr')[0]
+    return f'https://{mgr.status.host_ip}:{ports[0].node_port}'
+
+
+def dashboard_password():
+    s: V1Secret = client.CoreV1Api().read_namespaced_secret('rook-ceph-dashboard-password', 'rook-ceph')
+    return base64.b64decode(s.data['password']).decode('utf-8')
+
+
+def dashboard_token_header(url):
+    r = requests.post(f'{url}/api/auth', json={'username': 'admin', 'password': dashboard_password()}, verify=False)
+    return {'Authorization': f"Bearer {r.json()['token']}"}
+
+
 def _wait_for_condition(condition, timeout=30):
     max_time = time.time() + timeout
 
@@ -100,20 +123,19 @@ def _wait_for_condition(condition, timeout=30):
 
 
 def get_pods(namespace='rook-ceph', fields: str=None, labels: str=None) -> List[V1Pod]:
-    config.load_kube_config()
+    return client.CoreV1Api().list_namespaced_pod(
+        namespace=namespace,
+        **_field_labels_kwargs(fields, labels)
+    ).items
 
+
+def _field_labels_kwargs(fields, labels):
     kwargs = {}
     if fields:
         kwargs['field_selector'] = fields
     if labels:
         kwargs['label_selector'] = labels
-
-    pod_list = client.CoreV1Api().list_namespaced_pod(
-        namespace=namespace,
-        **kwargs
-    )
-
-    return pod_list.items
+    return kwargs
 
 
 def containers_started(p: V1Pod):
@@ -128,3 +150,14 @@ def pods_started(namespace='rook-ceph', fields: str=None, labels: str=None):
     if not pods:
         return False
     return all(containers_started(p) for p in pods)
+
+
+if __name__ == '__main__':
+    config.load_kube_config()
+    print(dashboard_url())
+    print(dashboard_password())
+
+    url = f'{dashboard_url()}/api/summary'
+    headers = dashboard_token_header(dashboard_url())#
+
+    requests.get(url, verify=False, headers=headers).raise_for_status()

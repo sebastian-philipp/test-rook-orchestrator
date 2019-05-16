@@ -5,14 +5,16 @@ crs="CephNFS CephObjectStore CephFilesystem CephCluster job"
 apps="mon mgr osd mds rgw tools"
 
 # finalizers can deadlock
-kubectl patch --namespace=rook-ceph crd/cephcluster.ceph.rook.io -p '{"metadata":{"finalizers":[]}}' --type=merge
+timeout 30 kubectl patch --namespace=rook-ceph deployment rook-ceph-operator -p '{"spec": {"replicas": 0}}'
+timeout 30 kubectl patch --namespace=rook-ceph crd cephcluster.ceph.rook.io -p '{"metadata":{"finalizers":[]}}' --type=merge
+timeout 30 kubectl patch --namespace=rook-ceph cephcluster.ceph.rook.io rook-ceph -p '{"metadata":{"finalizers":[]}}' --type=merge
 
 for cr in $crs
 do
     timeout 30 kubectl delete --namespace=rook-ceph $cr --grace-period=0 --force --all
 done
 
-timeout 30 kubectl delete -f cluster.yaml
+timeout 30 kubectl delete -f cluster-minimal.yaml
 timeout 30 kubectl delete -f toolbox.yaml
 timeout 30 kubectl delete --namespace=rook-ceph pod -n rook-ceph -l app=rook-ceph-operator
 
@@ -60,5 +62,7 @@ rm -rf /var/lib/rook
 EOF
 done
 popd
+
+kubectl patch --namespace=rook-ceph deployment rook-ceph-operator  -p '{"spec": {"replicas": 1}}'
 
 

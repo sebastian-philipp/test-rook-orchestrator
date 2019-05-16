@@ -1,3 +1,4 @@
 pytest
 kubernetes
 requests
+requests_bearer

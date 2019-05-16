@@ -7,3 +7,4 @@ common.yaml
 operator.yaml
 toolbox.yaml
 .tox
+dashboard-external-https.yaml
